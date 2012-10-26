@@ -4,6 +4,7 @@
 ## Installation/Startup
 
     $ fancy install --deps
+    $ #startup redis at localhost
     $ fancy todo.fy
 
 ## Resources
