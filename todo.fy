@@ -12,36 +12,13 @@ configure: ['production, 'development] with: {
 }
 
 cur_path = File absolute_path: "."
-pub_path = cur_path ++ "/public"
+pub_path = "#{cur_path}/public"
 
 set: 'port to: 3000
 set: 'public_folder to: pub_path
 
 
-# DEMO DATA
-
-R del: ("lists")
-R rpush: ("lists", "one")
-R rpush: ("lists", "two")
-R rpush: ("lists", "three")
-
-R del: ("list:one")
-R rpush: ("list:one", "i_one_1")
-
-R del: ("list:two")
-R rpush: ("list:two", "i_two_1")
-R rpush: ("list:two", "i_two_2")
-
-R del: ("list:three")
-R rpush: ("list:three", "i_three_1")
-R rpush: ("list:three", "i_three_2")
-R rpush: ("list:three", "i_three_3")
-
-R hset: ("list:one:item:i_one_1:data", "title", "item one 1")
-R hset: ("list:one:item:i_one_1:data", "description", "description one 1")
-
-
-# LIST OF LISTS
+# LISTS
 
 def list_lists {
   key = "lists"
@@ -61,14 +38,19 @@ def list_lists {
   }
 }
 
+def list_create: list_name {
+  R rpush: ("lists", list_name)
+  redirect: "/list/#{list_name}"
+}
 
-# LIST OF LIST ITEMS
+
+# ITEMS
 
 def list_items: list_name {
-  key = "list:" ++ list_name
-  len = R llen: (list_name)
+  key = "list:#{list_name}"
+  list_len = R llen: (key)
 
-  if: (0 == len) then: {
+  (0 == list_len) if_true: {
     """<p>No items in this list (yet)"""
   } else: {
     """
@@ -81,7 +63,7 @@ def list_items: list_name {
 }
 
 def list_items_list: list_name {
-  key = "list:" ++ list_name
+  key = "list:#{list_name}"
   items = R lrange: (key, 0, -1)
 
   items map: |item_name| {
@@ -93,24 +75,30 @@ def list_items_list: list_name {
   }
 }
 
+def item_create: list_name and: item_name and: item_description {
+  list_key = "list:#{list_name}"
+  item_key = "list:#{list_name}:item:#{item_name}:data"
+
+  R rpush: (list_key, item_name)
+  R hset: (item_key, "description", item_description)
+
+  redirect: "/list/#{list_name}/item/#{item_name}"
+}
+
 
 # ITEM DETAILS
 
 def item_details: list_name and: item_name {
-  key = "list:" ++ list_name ++ ":item:" ++ item_name ++ ":data"
-  has_title = R hexists: (key, "title")
+  key = "list:#{list_name}:item:#{item_name}:data"
   has_description = R hexists: (key, "description")
 
-  (0 == has_title) if_true: {
+  (0 == has_description) if_true: {
     """<p>Item not found.</p>"""
   } else: {
-    item_title = R hget: (key, "title")
     item_description = R hget: (key, "description")
 
     """
     <dl>
-      <dt>Title</dt>
-      <dd>#{item_title}</dd>
       <dt>Description</dt>
       <dd>#{item_description}</dd>
     </dl>
@@ -149,7 +137,19 @@ get: "/list/:list_name" do: |list_name| {
   layout: """
     <h2>ToDo List: #{list_name}</h2>
     #{list_items: list_name}
+    <form method=\"POST\">
+      Name: <input name=\"item_name\"/><br/>
+      Description: <input name=\"item_description\"/><br/>
+      <input type=\"submit\" value=\"create item\"/>
+    </form>
   """
+}
+
+post: "/list/:list_name" do: |list_name| {
+  item_name = params["item_name"]
+  item_description = params["item_description"]
+
+  item_create: list_name and: item_name and: item_description
 }
 
 get: "/" do: {
@@ -159,7 +159,16 @@ get: "/" do: {
     <ul>
       #{list_lists}
     </ul>
+    <form method=\"POST\">
+      Name: <input name=\"list_name\"/><br/>
+      <input type=\"submit\" value=\"create list\"/>
+    </form>
   """
+}
+
+post: "/" do: {
+  list_name = params["list_name"]
+  list_create: list_name
 }
 
 not_found: {
